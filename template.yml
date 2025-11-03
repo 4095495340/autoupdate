@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Automatically updates latest version of a Lambda Layer on target functions.
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: python3.11
+    MemorySize: 128
+
+Parameters:
+  LayerName:
+    Type: String
+    Description: The name of the Lambda Layer to keep updated.
+  TargetFunctions:
+    Type: CommaDelimitedList
+    Description: List of Lambda functions to update
+
+Resources:
+
+  UpdateLambdaLayerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: auto-update-layer
+      Handler: update_layers.lambda_handler
+      CodeUri: .
+      Description: Automatically updates Lambda functions with latest layer version
+      Policies:
+        - AWSLambda_ReadOnlyAccess
+        - Statement:
+            - Effect: Allow
+              Action:
+                - lambda:UpdateFunctionConfiguration
+                - lambda:ListLayerVersions
+              Resource: "*"
+      Environment:
+         Variables:
+            LAYER_NAME: !Ref LayerName
+            TARGET_FUNCTIONS: !Join [",", !Ref TargetFunctions]
+            ACCOUNT_ID: !Ref "AWS::AccountId"
+
+  LayerUpdateEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: auto-layer-updater-on-publish
+      EventPattern:
+        source:
+          - "aws.lambda"
+        detail-type:
+          - "AWS API Call via CloudTrail"
+        detail:
+          eventSource:
+            - "lambda.amazonaws.com"
+          eventName:
+            - "PublishLayerVersion"
+          requestParameters:
+            layerName:
+              - !Ref LayerName
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt UpdateLambdaLayerFunction.Arn
+          Id: "LayerUpdateTarget"
+
+  PermissionForEventsToInvokeLambda:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref UpdateLambdaLayerFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt LayerUpdateEventRule.Arn

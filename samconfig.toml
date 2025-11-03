@@ -1,0 +1,11 @@
+version = 0.1
+[default.deploy.parameters]
+stack_name = "layer-update-app"
+resolve_s3 = true
+s3_prefix = "layer-update-app"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+disable_rollback = true
+parameter_overrides = "LayerName=\"sample_layer_powertools\" TargetFunctions=\"tbd-validate-SendConfirmationFunction-eRXq2Zwum6yd, tbd-validate-ValidateOrderFunction-gornswbe8DD3\""
+image_repositories = []
